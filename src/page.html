@@ -19,6 +19,7 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 .logo{width:1.8em;height:1.8em;border-radius:.35em;vertical-align:middle;margin-right:.3em}.phone #join>.logo{width:84px;height:84px;margin:0}
 #menu{max-width:420px;margin:auto;padding:24px 14px}.logo.big{width:120px;height:120px;margin:0}#mjoin input{text-align:center}#dqr{width:200px;height:200px;margin:10px auto;background:#fff;border-radius:10px}#dqr svg{width:100%;height:100%}#invite{margin:10px 0}
 #dlist{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:8px 0}.watch #side .chip{font-size:1em}#watchform input{width:9em;text-align:center}
+.slots{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:8px 0}.slots .chip{font-size:1.1em}.chip.empty{background:none;outline:2px dashed #6b66a0;color:#aaa6cc}.count{width:100%}
 #lobby{display:flex;flex-direction:column;align-items:center;gap:1.6vmin;padding:2vmin}
 #qr{width:34vmin;height:34vmin;background:#fff;border-radius:2vmin}#qr svg{width:100%;height:100%}
 #code{font-size:6vmin;letter-spacing:.2em;font-weight:800}
@@ -50,6 +51,7 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <div id="settings">
       <select id="board" aria-label="Board"><option value="9">Square 9x9</option><option value="13">Square 13x13</option><option value="hex">Honeycomb</option></select>
       <select id="layout" aria-label="Starting layout"><option value="spread">Spread starts</option><option value="star">Star starts</option></select>
+      <select id="size" aria-label="Number of players"><option value="2">2 players</option><option value="4">4 players</option><option value="5">5 players</option><option value="6">6 players</option><option value="8">8 players</option></select>
       <select id="cpus" aria-label="Computer players"><option value="0">No computers</option><option value="1">1 computer</option><option value="2">2 computers</option><option value="3">3 computers</option><option value="4">4 computers</option><option value="5">5 computers</option><option value="6">6 computers</option><option value="7">7 computers</option></select>
     </div>
     <div id="joined"></div>
@@ -82,6 +84,7 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     </div>
     <div><select id="dboard" aria-label="Board"><option value="9">Square 9x9</option><option value="13">Square 13x13</option><option value="hex">Honeycomb</option></select>
     <select id="dlayout" aria-label="Starting layout"><option value="spread">Spread starts</option><option value="star">Star starts</option></select>
+    <select id="dsize" aria-label="Number of players"></select>
     <select id="dcpus" aria-label="Computer players"></select></div>
     <div id="dlist"></div>
     <div id="status2"></div>
@@ -98,7 +101,7 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <div id="colors"></div>
     <button id="joinbtn" class="on wide">Join</button>
   </form>
-  <section id="wait" hidden><h1 id="me"></h1><button id="pstart" class="on wide"></button><button id="leave" class="wide">Change name or emoji</button></section>
+  <section id="wait" hidden><h1 id="me"></h1><div id="wslots"></div><button id="pstart" class="on wide"></button><button id="leave" class="wide">Change name or emoji</button></section>
   <section id="ctrl" hidden>
     <h2 id="turn"></h2>
     <div id="pboard"></div>

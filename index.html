@@ -19,6 +19,7 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 .logo{width:1.8em;height:1.8em;border-radius:.35em;vertical-align:middle;margin-right:.3em}.phone #join>.logo{width:84px;height:84px;margin:0}
 #menu{max-width:420px;margin:auto;padding:24px 14px}.logo.big{width:120px;height:120px;margin:0}#mjoin input{text-align:center}#dqr{width:200px;height:200px;margin:10px auto;background:#fff;border-radius:10px}#dqr svg{width:100%;height:100%}#invite{margin:10px 0}
 #dlist{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:8px 0}.watch #side .chip{font-size:1em}#watchform input{width:9em;text-align:center}
+.slots{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:8px 0}.slots .chip{font-size:1.1em}.chip.empty{background:none;outline:2px dashed #6b66a0;color:#aaa6cc}.count{width:100%}
 #lobby{display:flex;flex-direction:column;align-items:center;gap:1.6vmin;padding:2vmin}
 #qr{width:34vmin;height:34vmin;background:#fff;border-radius:2vmin}#qr svg{width:100%;height:100%}
 #code{font-size:6vmin;letter-spacing:.2em;font-weight:800}
@@ -50,6 +51,7 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <div id="settings">
       <select id="board" aria-label="Board"><option value="9">Square 9x9</option><option value="13">Square 13x13</option><option value="hex">Honeycomb</option></select>
       <select id="layout" aria-label="Starting layout"><option value="spread">Spread starts</option><option value="star">Star starts</option></select>
+      <select id="size" aria-label="Number of players"><option value="2">2 players</option><option value="4">4 players</option><option value="5">5 players</option><option value="6">6 players</option><option value="8">8 players</option></select>
       <select id="cpus" aria-label="Computer players"><option value="0">No computers</option><option value="1">1 computer</option><option value="2">2 computers</option><option value="3">3 computers</option><option value="4">4 computers</option><option value="5">5 computers</option><option value="6">6 computers</option><option value="7">7 computers</option></select>
     </div>
     <div id="joined"></div>
@@ -82,6 +84,7 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     </div>
     <div><select id="dboard" aria-label="Board"><option value="9">Square 9x9</option><option value="13">Square 13x13</option><option value="hex">Honeycomb</option></select>
     <select id="dlayout" aria-label="Starting layout"><option value="spread">Spread starts</option><option value="star">Star starts</option></select>
+    <select id="dsize" aria-label="Number of players"></select>
     <select id="dcpus" aria-label="Computer players"></select></div>
     <div id="dlist"></div>
     <div id="status2"></div>
@@ -98,7 +101,7 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <div id="colors"></div>
     <button id="joinbtn" class="on wide">Join</button>
   </form>
-  <section id="wait" hidden><h1 id="me"></h1><button id="pstart" class="on wide"></button><button id="leave" class="wide">Change name or emoji</button></section>
+  <section id="wait" hidden><h1 id="me"></h1><div id="wslots"></div><button id="pstart" class="on wide"></button><button id="leave" class="wide">Change name or emoji</button></section>
   <section id="ctrl" hidden>
     <h2 id="turn"></h2>
     <div id="pboard"></div>
@@ -2649,6 +2652,24 @@ function fireworks(host) {
   }
 }
 
+// One row per spot in the game: who has joined, who is still missing, and computers.
+function drawSlots(box, seats, size, cpus) {
+  box.textContent = '';
+  box.className = 'slots';
+  const spots = Math.max(size, seats.length + cpus);
+  for (let i = 0; i < spots; i++) {
+    const p = seats[i], bot = !p && i >= spots - cpus;
+    const chip = el('div', 'chip' + (p || bot ? '' : ' empty'), p ? `${p.emoji} ${p.name}` : bot ? '🤖 Computer' : 'Waiting…');
+    if (p) chip.style.borderBottom = '6px solid ' + p.color;
+    box.appendChild(chip);
+  }
+  box.appendChild(el('div', 'count', `${Math.min(seats.length + cpus, spots)} of ${size} ready`));
+}
+const waitingText = (seats, size, cpus) => {
+  const n = size - cpus - seats;
+  return n > 0 ? `Waiting for ${n} more player${n > 1 ? 's' : ''}` : `Too many players for ${size} spots`;
+};
+
 /* ---------------- TV (spectator and host) ---------------- */
 function startTV(duo = false) {
   if (!duo) { document.body.className = 'tv'; $('tv').hidden = false; }
@@ -2658,15 +2679,27 @@ function startTV(duo = false) {
   const conns = new Map();
   let preview = null, peer, botTimer, celebrated = room.game?.win != null;
 
-  const total = () => room.seats.length + room.cpus;
-  const ready = () => room.seats.length >= 1 && Rules.counts(room.board).includes(total());
+  // Keeps the player count and computers valid for the chosen board and who has joined.
+  function tidy() {
+    const allowed = Rules.counts(room.board);
+    if (!allowed.includes(room.size)) room.size = allowed.filter(n => n <= (room.size || 2)).pop() || allowed[0];
+    room.cpus = Math.max(0, Math.min(room.cpus, room.size - Math.max(1, room.seats.length)));
+  }
+  function fill(size, cpus) {
+    for (const o of $(size).options) o.disabled = !Rules.counts(room.board).includes(+o.value) || +o.value < room.seats.length;
+    for (const o of $(cpus).options) o.disabled = +o.value > room.size - Math.max(1, room.seats.length);
+    $(size).value = room.size; $(cpus).value = room.cpus;
+  }
+  tidy();
+  const ready = () => room.seats.length >= 1 && room.seats.length + room.cpus === room.size;
   function broadcast() {
+    tidy();
     room.at = Date.now(); store.set(key, room);
     conns.forEach((conn, token) => {
       if (!conn.open) return;
       const g = room.game;
       conn.send({ type: 'state', duo, preview, you: g ? g.players.findIndex(p => p.id === token) : room.seats.findIndex(p => p.id === token),
-        seats: room.seats.map(p => ({ name: p.name, emoji: p.emoji, color: p.color })), ready: ready(), total: total(),
+        seats: room.seats.map(p => ({ name: p.name, emoji: p.emoji, color: p.color })), ready: ready(), size: room.size, cpus: room.cpus,
         game: g && { ...g, players: g.players.map(({ id, ...p }) => p) } });
     });
     render(); schedule();
@@ -2686,14 +2719,11 @@ function startTV(duo = false) {
       const q = qrcode(0, 'M'); q.addData(url); q.make();
       $('qr').innerHTML = q.createSvgTag({ scalable: true, margin: 2 });
       $('code').textContent = room.code;
-      $('board').value = room.board; $('layout').value = room.layout; $('cpus').value = room.cpus;
+      $('board').value = room.board; $('layout').value = room.layout; fill('size', 'cpus');
       $('layout').hidden = room.board !== '9';
-      $('joined').textContent = '';
-      room.seats.forEach(p => { const chip = el('div', 'chip', p.emoji + ' ' + p.name); chip.style.borderBottom = '6px solid ' + p.color; $('joined').appendChild(chip); });
+      drawSlots($('joined'), room.seats, room.size, room.cpus);
       $('start').disabled = !ready();
-      $('start').textContent = ready() ? `Show board (${total()} players)`
-        : !room.seats.length ? 'Waiting for a phone to join'
-        : `${total()} players. Need ${Rules.counts(room.board).join(', ')}`;
+      $('start').textContent = ready() ? `Show board (${room.size} players)` : waitingText(room.seats.length, room.size, room.cpus);
       return;
     }
     drawBoard($('tvboard'), g, { preview });
@@ -2716,9 +2746,8 @@ function startTV(duo = false) {
   const link = () => location.href.split(/[?#]/)[0] + '?room=' + room.code + '&duo=1';
   function invite() {
     $('invite').hidden = !!room.game;
-    $('dcpus').value = room.cpus;
-    $('dlist').textContent = '';
-    room.seats.forEach(p => { const chip = el('div', 'chip', p.emoji + ' ' + p.name); chip.style.borderBottom = '6px solid ' + p.color; $('dlist').appendChild(chip); });
+    fill('dsize', 'dcpus');
+    drawSlots($('dlist'), room.seats, room.size, room.cpus);
     const q = qrcode(0, 'M'); q.addData(link()); q.make();
     $('dqr').innerHTML = q.createSvgTag({ scalable: true, margin: 2 });
     $('dcode').textContent = room.code;
@@ -2746,7 +2775,7 @@ function startTV(duo = false) {
       if (g) return fail('A game is already running');
       if (!name || !EMOJIS.includes(m.emoji)) return fail('Enter a name and pick an emoji');
       if (room.seats.some((p,j) => j !== i && p.emoji === m.emoji)) return fail('Someone already has that emoji');
-      if (i < 0 && room.seats.length >= 8) return fail('The game is full');
+      if (i < 0 && room.seats.length >= room.size - room.cpus) return fail('The game is full. Ask the host to add a spot.');
       if (!COL.includes(m.color)) return fail('Pick a color');
       if (room.seats.some((p,j) => j !== i && p.color === m.color)) return fail('Someone already has that color');
       const seat = { id: conn.token, name, emoji: m.emoji, color: m.color };
@@ -2790,6 +2819,8 @@ function startTV(duo = false) {
     $('copy').onclick = () => share(link());
     $('copywatch').onclick = () => share(location.href.split(/[?#]/)[0] + '?watch=' + room.code);
     $('dcpus').innerHTML = $('cpus').innerHTML;
+    $('dsize').innerHTML = $('size').innerHTML;
+    $('dsize').onchange = () => { room.size = +$('dsize').value; broadcast(); };
     $('dcpus').onchange = () => { room.cpus = +$('dcpus').value; broadcast(); };
     $('quit').onclick = () => { if (!confirm('Leave this game? It ends it for everyone.')) return; store.set(key, null); location.href = location.href.split(/[?#]/)[0]; };
     document.addEventListener('visibilitychange', () => { if (!document.hidden && peer?.disconnected && !peer.destroyed) peer.reconnect(); });
@@ -2806,6 +2837,7 @@ function startTV(duo = false) {
   }
   $('board').onchange = () => { room.board = $('board').value; broadcast(); };
   $('layout').onchange = () => { room.layout = $('layout').value; broadcast(); };
+  $('size').onchange = () => { room.size = +$('size').value; broadcast(); };
   $('cpus').onchange = () => { room.cpus = +$('cpus').value; broadcast(); };
   $('start').onclick = begin;
   // TV remote: arrow keys move between the visible controls.
@@ -2837,12 +2869,12 @@ function startWatch(code) {
   const status = t => $('banner').textContent = t;
   function render() {
     const g = data.game;
-    $('list').textContent = ''; $('go').hidden = $('again').hidden = $('reset').hidden = true;
+    $('list').textContent = ''; $('list').className = ''; $('go').hidden = $('again').hidden = $('reset').hidden = true;
     $('rejoin').textContent = `Watching game ${code}`;
     $('banner').style.color = '';
     if (!g) {
       $('tvboard').textContent = ''; celebrated = false;
-      data.seats.forEach(p => $('list').appendChild(el('div', 'chip', p.emoji + ' ' + p.name)));
+      drawSlots($('list'), data.seats, data.size, data.cpus);
       return status('Waiting for the game to start');
     }
     drawBoard($('tvboard'), g, { preview: data.preview });
@@ -2945,7 +2977,8 @@ function startPhone(code, local = null, duo = !!local || new URLSearchParams(loc
     if (!g) {
       $('me').textContent = `${seats[you].emoji} ${seats[you].name}, you're in!`;
       $('pstart').disabled = !data.ready;
-      $('pstart').textContent = data.ready ? `Show board (${data.total} players)` : duo ? `${data.total} players. Need ${Rules.counts('9').join(', ')}` : `${data.total} players. Check the TV`;
+      if (local) $('wslots').textContent = ''; else drawSlots($('wslots'), seats, data.size, data.cpus);
+      $('pstart').textContent = data.ready ? `Show board (${data.size} players)` : waitingText(seats.length, data.size, data.cpus);
       return;
     }
     const G = Rules.geo(g.board), p = g.players[you], mine = turnNow(), who = g.players[g.win ?? g.turn];
