@@ -205,6 +205,16 @@ function startTV() {
   $('layout').onchange = () => { room.layout = $('layout').value; broadcast(); };
   $('cpus').onchange = () => { room.cpus = +$('cpus').value; broadcast(); };
   $('start').onclick = begin;
+  // TV remote: arrow keys move between the visible controls.
+  document.addEventListener('keydown', e => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    const list = [...$('tv').querySelectorAll('button, select')].filter(x => !x.disabled && x.offsetParent);
+    if (!list.length) return;
+    e.preventDefault();
+    const at = list.indexOf(document.activeElement);
+    list[at < 0 ? 0 : (at + step + list.length) % list.length].focus();
+  });
   $('go').onclick = go;
   $('again').onclick = again;
   $('reset').onclick = () => { if (!confirm('End this game and return to the lobby?')) return; room.game = null; preview = null; broadcast(); };

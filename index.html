@@ -13,6 +13,7 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 .emoji{text-anchor:middle;dominant-baseline:central}
 .lost{stroke:#E24B4A;stroke-width:14;stroke-linecap:round}
 .tv{font-size:2.2vmin}
+.tv :focus{outline:.6vmin solid #FFC83D;outline-offset:.3vmin}
 #lobby{display:flex;flex-direction:column;align-items:center;gap:1.6vmin;padding:2vmin}
 #qr{width:34vmin;height:34vmin;background:#fff;border-radius:2vmin}#qr svg{width:100%;height:100%}
 #code{font-size:6vmin;letter-spacing:.2em;font-weight:800}
@@ -2735,6 +2736,16 @@ function startTV() {
   $('layout').onchange = () => { room.layout = $('layout').value; broadcast(); };
   $('cpus').onchange = () => { room.cpus = +$('cpus').value; broadcast(); };
   $('start').onclick = begin;
+  // TV remote: arrow keys move between the visible controls.
+  document.addEventListener('keydown', e => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    const list = [...$('tv').querySelectorAll('button, select')].filter(x => !x.disabled && x.offsetParent);
+    if (!list.length) return;
+    e.preventDefault();
+    const at = list.indexOf(document.activeElement);
+    list[at < 0 ? 0 : (at + step + list.length) % list.length].focus();
+  });
   $('go').onclick = go;
   $('again').onclick = again;
   $('reset').onclick = () => { if (!confirm('End this game and return to the lobby?')) return; room.game = null; preview = null; broadcast(); };

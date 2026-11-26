@@ -20,3 +20,7 @@ A wall-placing race to the trophy. The TV shows the board; players move from the
 - Keep the TV tab open and the computer awake; it runs the game.
 - Bundles PeerJS and qrcode-generator (both MIT licensed).
 - Source is in `src/`; `index.html` is the built single-file game.
+
+## Shield / Android TV app
+The `android/` folder wraps the hosted game in a full-screen app. GitHub builds it and publishes
+[boxtile.apk](https://github.com/beejay06/Boxtile/releases/download/shield/boxtile.apk).
