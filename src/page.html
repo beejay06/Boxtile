@@ -17,6 +17,8 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 .tv{font-size:2.2vmin}
 .tv :focus{outline:.6vmin solid #FFC83D;outline-offset:.3vmin}
 .logo{width:1.8em;height:1.8em;border-radius:.35em;vertical-align:middle;margin-right:.3em}.phone #join>.logo{width:84px;height:84px;margin:0}
+#menu{max-width:420px;margin:auto;padding:24px 14px}.logo.big{width:120px;height:120px;margin:0}#mjoin input{text-align:center}#dqr{width:200px;height:200px;margin:10px auto;background:#fff;border-radius:10px}#dqr svg{width:100%;height:100%}#invite{margin:10px 0}
+#dlist{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:8px 0}.watch #side .chip{font-size:1em}#watchform input{width:9em;text-align:center}
 #lobby{display:flex;flex-direction:column;align-items:center;gap:1.6vmin;padding:2vmin}
 #qr{width:34vmin;height:34vmin;background:#fff;border-radius:2vmin}#qr svg{width:100%;height:100%}
 #code{font-size:6vmin;letter-spacing:.2em;font-weight:800}
@@ -53,14 +55,38 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <div id="joined"></div>
     <div><button id="start" class="on" disabled></button> <button id="clear">Clear players</button></div>
     <div id="status"></div>
+    <button id="duolink">Phones only, no TV</button>
+    <form id="watchform"><input id="wcode" maxlength="4" placeholder="Game code" required> <button>Watch a game</button></form>
   </section>
   <section id="play" hidden>
     <div id="tvboard"></div>
     <div id="side"><div id="banner"></div><button id="go" class="on">Start game</button><button id="again" class="on">Rematch</button><div id="list"></div><small id="rejoin"></small><button id="reset">End game</button></div>
   </section>
 </main>
+<main id="menu" hidden>
+  <img class="logo big" src="icon-192.png" alt=""><h1>Boxtile</h1>
+  <button id="mduo" class="on wide">1. Phones only, no TV</button>
+  <button id="mtv" class="wide">2. Use this screen as the TV</button>
+  <form id="mjoin"><input id="mcode" class="wide" maxlength="4" placeholder="Game code" autocapitalize="characters" required><button class="wide">Join with code</button></form>
+  <button id="mwatch" class="wide">Watch with code</button>
+</main>
 <main id="phone" hidden>
   <div id="note"></div>
+  <section id="invite" hidden>
+    <div id="share">
+      <p>Invite players, and keep this screen open.</p>
+      <button id="copy" class="on wide">Share invite link</button>
+      <div id="dqr"></div>
+      <div>Code <b id="dcode"></b></div>
+      <button id="copywatch" class="wide">Share watch-only link (TV or laptop)</button>
+    </div>
+    <div><select id="dboard" aria-label="Board"><option value="9">Square 9x9</option><option value="13">Square 13x13</option><option value="hex">Honeycomb</option></select>
+    <select id="dlayout" aria-label="Starting layout"><option value="spread">Spread starts</option><option value="star">Star starts</option></select>
+    <select id="dcpus" aria-label="Computer players"></select></div>
+    <div id="dlist"></div>
+    <div id="status2"></div>
+    <button id="quit" class="wide">Leave game</button>
+  </section>
   <form id="join" hidden>
     <img class="logo" src="icon-192.png" alt="Boxtile">
     <h1>Join the game</h1>
@@ -81,6 +107,8 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <button id="pagain" class="on wide">Rematch</button>
     <div id="tools"><div class="grid"><button id="wh"></button><button id="wv"></button><button id="cancel">Cancel wall</button><button id="place">Place wall</button></div></div>
     <div id="walls"></div>
+    <small id="pcode"></small>
+    <button id="pend" class="wide" hidden>End game</button>
   </section>
 </main>
 <!--SCRIPTS-->

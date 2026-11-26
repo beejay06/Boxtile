@@ -8,6 +8,10 @@ A wall-placing race to the trophy. The TV shows the board; players move from the
 3. Each player scans the QR code, enters a screen name, picks an emoji and joins.
 4. Tap **Show board**, then **Start game**.
 
+## Phones only (no TV)
+On a phone, choose **Phones only**, then share the invite link. One phone hosts, so keep it open.
+Share the **watch-only** link to show the board on a TV or laptop.
+
 ## Rules
 - First to reach the trophy wins.
 - On your turn, move one tile or place one wall.

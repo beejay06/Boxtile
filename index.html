@@ -17,6 +17,8 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 .tv{font-size:2.2vmin}
 .tv :focus{outline:.6vmin solid #FFC83D;outline-offset:.3vmin}
 .logo{width:1.8em;height:1.8em;border-radius:.35em;vertical-align:middle;margin-right:.3em}.phone #join>.logo{width:84px;height:84px;margin:0}
+#menu{max-width:420px;margin:auto;padding:24px 14px}.logo.big{width:120px;height:120px;margin:0}#mjoin input{text-align:center}#dqr{width:200px;height:200px;margin:10px auto;background:#fff;border-radius:10px}#dqr svg{width:100%;height:100%}#invite{margin:10px 0}
+#dlist{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:8px 0}.watch #side .chip{font-size:1em}#watchform input{width:9em;text-align:center}
 #lobby{display:flex;flex-direction:column;align-items:center;gap:1.6vmin;padding:2vmin}
 #qr{width:34vmin;height:34vmin;background:#fff;border-radius:2vmin}#qr svg{width:100%;height:100%}
 #code{font-size:6vmin;letter-spacing:.2em;font-weight:800}
@@ -53,14 +55,38 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <div id="joined"></div>
     <div><button id="start" class="on" disabled></button> <button id="clear">Clear players</button></div>
     <div id="status"></div>
+    <button id="duolink">Phones only, no TV</button>
+    <form id="watchform"><input id="wcode" maxlength="4" placeholder="Game code" required> <button>Watch a game</button></form>
   </section>
   <section id="play" hidden>
     <div id="tvboard"></div>
     <div id="side"><div id="banner"></div><button id="go" class="on">Start game</button><button id="again" class="on">Rematch</button><div id="list"></div><small id="rejoin"></small><button id="reset">End game</button></div>
   </section>
 </main>
+<main id="menu" hidden>
+  <img class="logo big" src="icon-192.png" alt=""><h1>Boxtile</h1>
+  <button id="mduo" class="on wide">1. Phones only, no TV</button>
+  <button id="mtv" class="wide">2. Use this screen as the TV</button>
+  <form id="mjoin"><input id="mcode" class="wide" maxlength="4" placeholder="Game code" autocapitalize="characters" required><button class="wide">Join with code</button></form>
+  <button id="mwatch" class="wide">Watch with code</button>
+</main>
 <main id="phone" hidden>
   <div id="note"></div>
+  <section id="invite" hidden>
+    <div id="share">
+      <p>Invite players, and keep this screen open.</p>
+      <button id="copy" class="on wide">Share invite link</button>
+      <div id="dqr"></div>
+      <div>Code <b id="dcode"></b></div>
+      <button id="copywatch" class="wide">Share watch-only link (TV or laptop)</button>
+    </div>
+    <div><select id="dboard" aria-label="Board"><option value="9">Square 9x9</option><option value="13">Square 13x13</option><option value="hex">Honeycomb</option></select>
+    <select id="dlayout" aria-label="Starting layout"><option value="spread">Spread starts</option><option value="star">Star starts</option></select>
+    <select id="dcpus" aria-label="Computer players"></select></div>
+    <div id="dlist"></div>
+    <div id="status2"></div>
+    <button id="quit" class="wide">Leave game</button>
+  </section>
   <form id="join" hidden>
     <img class="logo" src="icon-192.png" alt="Boxtile">
     <h1>Join the game</h1>
@@ -81,6 +107,8 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <button id="pagain" class="on wide">Rematch</button>
     <div id="tools"><div class="grid"><button id="wh"></button><button id="wv"></button><button id="cancel">Cancel wall</button><button id="place">Place wall</button></div></div>
     <div id="walls"></div>
+    <small id="pcode"></small>
+    <button id="pend" class="wide" hidden>End game</button>
   </section>
 </main>
 <script>
@@ -2622,10 +2650,9 @@ function fireworks(host) {
 }
 
 /* ---------------- TV (spectator and host) ---------------- */
-function startTV() {
-  document.body.className = 'tv';
-  $('tv').hidden = false;
-  const saved = store.get('bx-host');
+function startTV(duo = false) {
+  if (!duo) { document.body.className = 'tv'; $('tv').hidden = false; }
+  const key = duo ? 'bx-duo' : 'bx-host', saved = store.get(key);
   const room = saved && Date.now() - saved.at < 6*3600e3 ? saved
     : { code: randomId(4), seats: [], game: null, board: '9', layout: 'spread', cpus: 0 };
   const conns = new Map();
@@ -2634,11 +2661,11 @@ function startTV() {
   const total = () => room.seats.length + room.cpus;
   const ready = () => room.seats.length >= 1 && Rules.counts(room.board).includes(total());
   function broadcast() {
-    room.at = Date.now(); store.set('bx-host', room);
+    room.at = Date.now(); store.set(key, room);
     conns.forEach((conn, token) => {
       if (!conn.open) return;
       const g = room.game;
-      conn.send({ type: 'state', you: g ? g.players.findIndex(p => p.id === token) : room.seats.findIndex(p => p.id === token),
+      conn.send({ type: 'state', duo, preview, you: g ? g.players.findIndex(p => p.id === token) : room.seats.findIndex(p => p.id === token),
         seats: room.seats.map(p => ({ name: p.name, emoji: p.emoji, color: p.color })), ready: ready(), total: total(),
         game: g && { ...g, players: g.players.map(({ id, ...p }) => p) } });
     });
@@ -2652,6 +2679,7 @@ function startTV() {
   }
   function render() {
     const g = room.game;
+    if (duo) return invite();
     $('lobby').hidden = !!g; $('play').hidden = !g;
     if (!g) {
       const url = location.href.split(/[?#]/)[0] + '?room=' + room.code;
@@ -2685,6 +2713,17 @@ function startTV() {
     if (g.win !== null && !celebrated) fireworks($('tvboard'));
     celebrated = g.win !== null;
   }
+  const link = () => location.href.split(/[?#]/)[0] + '?room=' + room.code + '&duo=1';
+  function invite() {
+    $('invite').hidden = !!room.game;
+    $('dcpus').value = room.cpus;
+    $('dlist').textContent = '';
+    room.seats.forEach(p => { const chip = el('div', 'chip', p.emoji + ' ' + p.name); chip.style.borderBottom = '6px solid ' + p.color; $('dlist').appendChild(chip); });
+    const q = qrcode(0, 'M'); q.addData(link()); q.make();
+    $('dqr').innerHTML = q.createSvgTag({ scalable: true, margin: 2 });
+    $('dcode').textContent = room.code;
+    $('dboard').value = room.board; $('dlayout').value = room.layout; $('dlayout').hidden = room.board !== '9';
+  }
   function begin() {
     if (!ready()) return;
     const list = room.seats.map(p => ({ ...p, cpu: false }));
@@ -2696,7 +2735,8 @@ function startTV() {
   const again = () => { if (room.game && room.game.win !== null) { Rules.restart(room.game); preview = null; broadcast(); } };
   function handle(conn, m) {
     if (!m || typeof m !== 'object') return;
-    if (m.type === 'hello' && typeof m.token === 'string') { conn.token = m.token; conns.set(m.token, conn); return broadcast(); }
+    if (conn.watch) return;
+    if (m.type === 'hello' && typeof m.token === 'string') { conn.watch = !!m.watch; conn.token = m.token; conns.set(m.token, conn); return broadcast(); }
     if (!conn.token) return;
     const i = room.seats.findIndex(p => p.id === conn.token);
     const g = room.game, gi = g ? g.players.findIndex(p => p.id === conn.token) : -1;
@@ -2715,9 +2755,11 @@ function startTV() {
     else if (m.type === 'start' && !g && i >= 0) return begin();
     else if (gi < 0) return;
     else if (m.type === 'go') return go();
+    else if (m.type === 'end' && duo && conn.local) { room.game = null; preview = null; }
     else if (m.type === 'again') return again();
     else if (m.type === 'preview' && gi === g.turn && g.live && g.win === null) {
       preview = m.wall && Rules.wallError(g, m.wall) !== 'Off the board' ? m.wall : null;
+      conns.forEach(c => c.watch && c.open && c.send({ type: 'preview', wall: preview }));
       return render();
     } else if (m.type === 'act') {
       const e = Rules.act(g, gi, m.action);
@@ -2728,23 +2770,51 @@ function startTV() {
   }
   function connect() {
     peer = new Peer(PREFIX + room.code);
-    peer.on('open', () => { $('status').textContent = ''; broadcast(); });
+    peer.on('open', () => { $(duo ? 'status2' : 'status').textContent = ''; broadcast(); });
     peer.on('connection', conn => { conn.on('data', m => handle(conn, m)); conn.on('close', () => render()); });
     peer.on('disconnected', () => setTimeout(() => !peer.destroyed && peer.reconnect(), 2000));
     peer.on('error', e => {
-      $('status').textContent = 'Connection problem: ' + e.type + '. Retrying…';
+      $(duo ? 'status2' : 'status').textContent = 'Connection problem: ' + e.type + '. Retrying…';
       if (peer.destroyed || e.type === 'unavailable-id') { peer.destroy(); setTimeout(connect, 3000); }
     });
+  }
+  if (duo) {
+    $('dboard').onchange = () => { room.board = $('dboard').value; broadcast(); };
+    $('dlayout').onchange = () => { room.layout = $('dlayout').value; broadcast(); };
+    const share = async url => {
+      try {
+        if (navigator.share) await navigator.share({ title: 'Boxtile', url });
+        else { await navigator.clipboard.writeText(url); $('status2').textContent = 'Link copied'; }
+      } catch {}
+    };
+    $('copy').onclick = () => share(link());
+    $('copywatch').onclick = () => share(location.href.split(/[?#]/)[0] + '?watch=' + room.code);
+    $('dcpus').innerHTML = $('cpus').innerHTML;
+    $('dcpus').onchange = () => { room.cpus = +$('dcpus').value; broadcast(); };
+    $('quit').onclick = () => { if (!confirm('Leave this game? It ends it for everyone.')) return; store.set(key, null); location.href = location.href.split(/[?#]/)[0]; };
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && peer?.disconnected && !peer.destroyed) peer.reconnect(); });
+    navigator.wakeLock?.request('screen').catch(() => {});
+    connect();
+    // This phone's own controller talks to the host directly.
+    startPhone(room.code, receive => {
+      const later = (fn, m) => { const copy = JSON.parse(JSON.stringify(m)); setTimeout(() => fn(copy)); };
+      const hostSide = { open: true, local: true, send: m => later(receive, m) };
+      return { open: true, send: m => later(x => handle(hostSide, x), m) };
+    }, true);
+    render();
+    return;
   }
   $('board').onchange = () => { room.board = $('board').value; broadcast(); };
   $('layout').onchange = () => { room.layout = $('layout').value; broadcast(); };
   $('cpus').onchange = () => { room.cpus = +$('cpus').value; broadcast(); };
   $('start').onclick = begin;
   // TV remote: arrow keys move between the visible controls.
+  $('watchform').onsubmit = e => { e.preventDefault(); goWatch($('wcode').value); };
+  $('duolink').onclick = () => { location.href = location.href.split(/[?#]/)[0] + '?duo=host'; };
   document.addEventListener('keydown', e => {
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
     if (!step) return;
-    const list = [...$('tv').querySelectorAll('button, select')].filter(x => !x.disabled && x.offsetParent);
+    const list = [...$('tv').querySelectorAll('button, select, input')].filter(x => !x.disabled && x.offsetParent);
     if (!list.length) return;
     e.preventDefault();
     const at = list.indexOf(document.activeElement);
@@ -2757,8 +2827,62 @@ function startTV() {
   render(); connect();
 }
 
+/* ---------------- Spectator (watch only) ---------------- */
+const goWatch = c => location.href = location.href.split(/[?#]/)[0] + '?watch=' + encodeURIComponent(c.trim().toUpperCase());
+function startWatch(code) {
+  document.body.className = 'tv watch';
+  $('tv').hidden = false; $('lobby').hidden = true; $('play').hidden = false;
+  const token = 'watch-' + randomId(12);
+  let peer, conn, retry, data = null, celebrated = false;
+  const status = t => $('banner').textContent = t;
+  function render() {
+    const g = data.game;
+    $('list').textContent = ''; $('go').hidden = $('again').hidden = $('reset').hidden = true;
+    $('rejoin').textContent = `Watching game ${code}`;
+    $('banner').style.color = '';
+    if (!g) {
+      $('tvboard').textContent = ''; celebrated = false;
+      data.seats.forEach(p => $('list').appendChild(el('div', 'chip', p.emoji + ' ' + p.name)));
+      return status('Waiting for the game to start');
+    }
+    drawBoard($('tvboard'), g, { preview: data.preview });
+    const who = g.players[g.win ?? g.turn];
+    status(g.win !== null ? `🏆 ${who.emoji} ${who.name} wins!` : `${who.emoji} ${who.name}${g.live ? "'s turn" : ' goes first'}`);
+    $('banner').style.color = who.color;
+    g.players.forEach((p,i) => {
+      const row = el('div', 'row' + (i === g.turn && g.win === null ? ' now' : ''));
+      row.style.borderColor = p.color;
+      row.append(el('span', '', `${p.emoji} ${p.name}`), el('span', '', `${Rules.away(g,i)} away · 🧱 ${p.left}`));
+      $('list').appendChild(row);
+    });
+    if (g.win !== null && !celebrated) fireworks($('tvboard'));
+    celebrated = g.win !== null;
+  }
+  function connect() {
+    clearTimeout(retry); peer?.destroy();
+    status('Connecting to the game…');
+    const mine = peer = new Peer();
+    const lost = () => { if (mine !== peer) return; status('Lost the game. Reconnecting…'); clearTimeout(retry); retry = setTimeout(connect, 2500); };
+    mine.on('open', () => {
+      conn = mine.connect(PREFIX + code, { reliable: true });
+      conn.on('open', () => conn.send({ type: 'hello', token, watch: true }));
+      conn.on('data', m => {
+        if (m.type === 'state') data = m;
+        else if (m.type === 'preview' && data) data.preview = m.wall;
+        else return;
+        render();
+      });
+      conn.on('close', lost);
+    });
+    mine.on('error', lost);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !conn?.open) connect(); });
+  navigator.wakeLock?.request('screen').catch(() => {});
+  connect();
+}
+
 /* ---------------- Phone (controller) ---------------- */
-function startPhone(code) {
+function startPhone(code, local = null, duo = !!local || new URLSearchParams(location.search).has('duo')) {
   document.body.className = 'phone';
   $('phone').hidden = false;
   let token = store.get('tr-token');
@@ -2766,21 +2890,23 @@ function startPhone(code) {
   let peer, conn, data = null, retry, pick = null, tint = null, ori = null, wall = null, hd = 0, angle = 0, toBoard, celebrated = false;
   const send = m => conn?.open && conn.send(m);
   const note = t => $('note').textContent = t;
+  function receive(m) {
+    if (m.type === 'error') return note(m.text);
+    const g = m.game, old = data?.game;
+    if (!g || !old || g.turn !== old.turn || g.walls.length !== old.walls.length) { ori = null; wall = null; }
+    data = m; duo = m.duo; note(''); render();
+  }
   function connect() {
+    if (local) { conn = local(receive); return send({ type: 'hello', token }); }
     clearTimeout(retry);
     peer?.destroy();
-    note('Connecting to the TV…');
+    note(duo ? 'Connecting to the host phone…' : 'Connecting to the TV…');
     const mine = peer = new Peer();
-    const lost = () => { if (mine !== peer) return; note('Lost the TV. Reconnecting…'); clearTimeout(retry); retry = setTimeout(connect, 2500); };
+    const lost = () => { if (mine !== peer) return; note(duo ? 'Lost the host phone. Reconnecting…' : 'Lost the TV. Reconnecting…'); clearTimeout(retry); retry = setTimeout(connect, 2500); };
     mine.on('open', () => {
       conn = mine.connect(PREFIX + code, { reliable: true });
       conn.on('open', () => { note(''); send({ type: 'hello', token }); });
-      conn.on('data', m => {
-        if (m.type === 'error') return note(m.text);
-        const g = m.game, old = data?.game;
-        if (!g || !old || g.turn !== old.turn || g.walls.length !== old.walls.length) { ori = null; wall = null; }
-        data = m; note(''); render();
-      });
+      conn.on('data', receive);
       conn.on('close', lost);
     });
     mine.on('error', lost);
@@ -2814,12 +2940,12 @@ function startPhone(code) {
     $('join').hidden = !!g || you >= 0;
     $('wait').hidden = !!g || you < 0;
     $('ctrl').hidden = !g || you < 0;
-    if (g && you < 0) return note('Game in progress. Watch the TV and join the next one.');
+    if (g && you < 0) return note(duo ? 'Game in progress. Join the next one.' : 'Game in progress. Watch the TV and join the next one.');
     if (!g && you < 0) return drawEmojis();
     if (!g) {
       $('me').textContent = `${seats[you].emoji} ${seats[you].name}, you're in!`;
       $('pstart').disabled = !data.ready;
-      $('pstart').textContent = data.ready ? `Show board (${data.total} players)` : `${data.total} players. Check the TV`;
+      $('pstart').textContent = data.ready ? `Show board (${data.total} players)` : duo ? `${data.total} players. Need ${Rules.counts('9').join(', ')}` : `${data.total} players. Check the TV`;
       return;
     }
     const G = Rules.geo(g.board), p = g.players[you], mine = turnNow(), who = g.players[g.win ?? g.turn];
@@ -2831,7 +2957,7 @@ function startPhone(code) {
     $('pboard').style.touchAction = ori ? 'none' : 'manipulation';
     const problem = wall && Rules.wallError(g, wall);
     $('hint').textContent = g.win !== null ? 'Tap Rematch to play again' : !g.live ? 'Find your piece, then tap Start game'
-      : !mine ? 'Watch the TV' : problem || (wall ? 'Tap Place wall, or tap another spot' : ori ? 'Tap the board where the wall goes' : 'Tap a purple tile, or pick a wall');
+      : !mine ? (duo ? 'Waiting for your turn' : 'Watch the TV') : problem || (wall ? 'Tap Place wall, or tap another spot' : ori ? 'Tap the board where the wall goes' : 'Tap a purple tile, or pick a wall');
     $('pgo').hidden = g.live; $('pagain').hidden = g.win === null;
     $('tools').hidden = !mine;
     for (const id of ['wh','wv']) {
@@ -2844,6 +2970,9 @@ function startPhone(code) {
     }
     $('place').disabled = !wall || !!problem; $('cancel').disabled = !ori;
     $('walls').textContent = `${p.emoji} ${Rules.away(g,you)} away · 🧱 ${p.left} left`;
+    if (duo) g.players.forEach((o,i) => { if (i !== you) $('walls').appendChild(el('div', '', `${o.emoji} ${o.name}: ${Rules.away(g,i)} away · 🧱 ${o.left} left`)); });
+    $('pend').hidden = !local;
+    $('pcode').textContent = duo ? `Game code ${code}` : '';
     if (g.win !== null && !celebrated) fireworks($('pboard'));
     celebrated = g.win !== null;
   }
@@ -2906,13 +3035,26 @@ function startPhone(code) {
   $('leave').onclick = () => send({ type: 'leave' });
   $('pgo').onclick = () => send({ type: 'go' });
   $('pagain').onclick = () => send({ type: 'again' });
+  $('pend').onclick = () => confirm('End this game?') && send({ type: 'end' });
   $('place').onclick = () => wall && send({ type: 'act', action: { kind: 'wall', ...wall } });
   $('cancel').onclick = () => { ori = null; setWall(null); };
   connect();
 }
 
-const code = new URLSearchParams(location.search).get('room');
-code ? startPhone(code.toUpperCase().replace(/[^A-Z0-9]/g,'')) : startTV();
+const query = new URLSearchParams(location.search);
+const code = query.get('room');
+const clean = c => c.toUpperCase().replace(/[^A-Z0-9]/g,'');
+if (query.get('watch')) startWatch(clean(query.get('watch')));
+else if (code) startPhone(clean(code));
+else if (query.get('duo') === 'host') startTV(true);
+else if (/Mobi|iPhone|iPod/.test(navigator.userAgent)) { // phones choose how to play
+  document.body.className = 'phone';
+  $('menu').hidden = false;
+  $('mduo').onclick = () => { location.href = location.href.split(/[?#]/)[0] + '?duo=host'; };
+  $('mtv').onclick = () => { $('menu').hidden = true; startTV(); };
+  $('mwatch').onclick = () => $('mcode').value.trim() ? goWatch($('mcode').value) : $('mcode').focus();
+  $('mjoin').onsubmit = e => { e.preventDefault(); location.href = location.href.split(/[?#]/)[0] + '?room=' + encodeURIComponent($('mcode').value.trim().toUpperCase()); };
+} else startTV();
 
 </script>
 
