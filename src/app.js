@@ -38,6 +38,8 @@ function angleFor(G, home) {
   }
   return best;
 }
+// Once the game is won, everyone who lost shows a crying face.
+const face = (g, i) => g.win !== null && i !== g.win ? '😭' : g.players[i].emoji;
 // Draws into host; returns a function converting screen points to board coordinates.
 function drawBoard(host, s, { targets = [], preview = null, angle = 0 } = {}) {
   const G = Rules.geo(s.board);
@@ -65,12 +67,7 @@ function drawBoard(host, s, { targets = [], preview = null, angle = 0 } = {}) {
   };
   if (s.win === null) text(G.C, '🏆');
   s.walls.forEach(w => wall(w, s.players[w.by].color, 1));
-  s.players.forEach(p => text(p.pos, p.emoji));
-  if (s.win !== null) s.players.forEach((p,i) => {
-    if (i === s.win) return;
-    const [x,y] = xy(G,...p.pos);
-    for (const d of [1,-1]) svg('line', { x1: x-40, y1: y-40*d, x2: x+40, y2: y+40*d, class: 'lost' }, b);
-  });
+  s.players.forEach((p,i) => text(p.pos, face(s,i)));
   if (preview) wall(preview, s.players[s.turn].color, Rules.wallError(s,preview) ? .3 : 1);
   return (x,y) => new DOMPoint(x,y).matrixTransform(b.getScreenCTM().inverse());
 }
@@ -197,7 +194,7 @@ function setupMusic(report = () => {}) {
     $('openapp').textContent = other ? `Open ${names[source]}` : '';
     $('music').classList.toggle('on', source !== '');
     document.body.classList.toggle('has-music', other ? inApp : link && !!wanted);
-    if (other && inApp) { app = { title: '', playing: false, art: '' }; setArt($('rart'), ''); tell('use/' + source); }
+    if (other && inApp) { app = { title: '', playing: false, art: '' }; setArt($('rart'), ''); setTimeout(() => tell('use/' + source), 600); } // after the page has loaded
     tellPhones();
   }
   pick.onchange = () => show(pick.value);
@@ -227,16 +224,51 @@ function setupMusic(report = () => {}) {
   if (window.ResizeObserver) new ResizeObserver(() => document.body.style.setProperty('--mh', $('music').offsetHeight + 'px')).observe($('music'));
   return play;
 }
-// TV remote: arrow keys move between the visible controls.
+// TV remote: arrows move toward what is on screen in that direction. Right from the
+// last control in a row jumps to the music; Left from the music jumps back.
 function remoteArrows() {
+  let outside = null;
+  const music = () => $('music');
+  // Text boxes stay locked (no pop-up keyboard) until OK or a click.
+  const boxes = [...$('tv').querySelectorAll('input')];
+  boxes.forEach(box => {
+    box.readOnly = true;
+    box.addEventListener('blur', () => box.readOnly = true);
+    box.addEventListener('pointerdown', () => box.readOnly = false);
+    box.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || !box.readOnly) return;
+      e.preventDefault(); box.blur(); box.readOnly = false; box.focus();
+    });
+  });
   document.addEventListener('keydown', e => {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
-    if (!step) return;
-    const list = [...$('tv').querySelectorAll('button, select, input')].filter(x => !x.disabled && x.offsetParent);
+    const dir = { ArrowRight: [1,0], ArrowLeft: [-1,0], ArrowDown: [0,1], ArrowUp: [0,-1] }[e.key];
+    if (!dir) return;
+    const at = document.activeElement;
+    if (at?.tagName === 'INPUT' && !at.readOnly && dir[0]) return; // move the typing cursor
+    const list = [...$('tv').querySelectorAll('button, select, input')].filter(x => !x.disabled && x.offsetParent !== null || (!x.disabled && x.closest('#music') && x.getClientRects().length));
     if (!list.length) return;
     e.preventDefault();
-    const at = list.indexOf(document.activeElement);
-    list[at < 0 ? 0 : (at + step + list.length) % list.length].focus();
+    const go = to => { if (!to) return; to.focus(); to.scrollIntoView({ block: 'nearest', inline: 'nearest' }); };
+    if (!list.includes(at)) return go(list.includes($('start')) ? $('start') : list[0]);
+    const from = at.getBoundingClientRect();
+    let best = null, low = Infinity;
+    for (const x of list) {
+      if (x === at) continue;
+      const r = x.getBoundingClientRect();
+      const dx = (r.left + r.right - from.left - from.right) / 2, dy = (r.top + r.bottom - from.top - from.bottom) / 2;
+      if (dir[0]) { // sideways stays in the same row
+        if (dx * dir[0] <= 1 || r.top >= from.bottom - 2 || r.bottom <= from.top + 2) continue;
+      } else if (dir[1] > 0 ? r.top < from.bottom - 4 : r.bottom > from.top + 4) continue;
+      const score = dir[0] ? Math.abs(dx) : Math.abs(dy) + Math.abs(dx) * .3;
+      if (score < low) { low = score; best = x; }
+    }
+    if (!best && dir[0] > 0 && !music().contains(at)) {
+      outside = at;
+      best = ['rpp', 'pp', 'openapp', 'source'].map($).find(x => list.includes(x));
+    } else if (!best && dir[0] < 0 && music().contains(at)) {
+      best = list.includes(outside) ? outside : list.find(x => !music().contains(x));
+    }
+    go(best);
   });
 }
 
@@ -310,7 +342,7 @@ function startTV(duo = false) {
       const row = el('div', 'row' + (i === g.turn && g.win === null ? ' now' : ''));
       row.style.borderColor = p.color;
       const gone = !p.cpu && !conns.get(p.id)?.open;
-      row.append(el('span', '', `${p.emoji} ${p.name}${gone ? ' 📵' : ''}`), el('span', '', `${Rules.away(g,i)} away · 🧱 ${p.left}`));
+      row.append(el('span', '', `${face(g,i)} ${p.name}${gone ? ' 📵' : ''}`), el('span', '', `${Rules.away(g,i)} away · 🧱 ${p.left}`));
       $('list').appendChild(row);
     });
     $('go').hidden = g.live; $('again').hidden = g.win === null;
@@ -437,7 +469,7 @@ function startTV(duo = false) {
 }
 
 /* ---------------- Spectator (watch only) ---------------- */
-const goWatch = c => location.href = location.href.split(/[?#]/)[0] + '?watch=' + encodeURIComponent(c.trim().toUpperCase());
+const goWatch = c => c.trim() && (location.href = location.href.split(/[?#]/)[0] + '?watch=' + encodeURIComponent(c.trim().toUpperCase()));
 function startWatch(code) {
   document.body.className = 'tv watch';
   $('tv').hidden = false; $('lobby').hidden = true; $('play').hidden = false;
@@ -464,7 +496,7 @@ function startWatch(code) {
     g.players.forEach((p,i) => {
       const row = el('div', 'row' + (i === g.turn && g.win === null ? ' now' : ''));
       row.style.borderColor = p.color;
-      row.append(el('span', '', `${p.emoji} ${p.name}`), el('span', '', `${Rules.away(g,i)} away · 🧱 ${p.left}`));
+      row.append(el('span', '', `${face(g,i)} ${p.name}`), el('span', '', `${Rules.away(g,i)} away · 🧱 ${p.left}`));
       $('list').appendChild(row);
     });
     if (g.win !== null && !celebrated) fireworks($('tvboard'));

@@ -13,7 +13,6 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 .board{width:100%;height:100%;display:block;user-select:none;-webkit-user-select:none}
 .cell{fill:#38345a}.cell.cup{fill:#FAC775}.cell.hot{fill:#7c5cff;cursor:pointer}
 .emoji{text-anchor:middle;dominant-baseline:central}
-.lost{stroke:#E24B4A;stroke-width:14;stroke-linecap:round}
 .tv{font-size:2.2vmin}
 .tv :focus{outline:.6vmin solid #FFC83D;outline-offset:.3vmin}
 .logo{width:1.8em;height:1.8em;border-radius:.35em;vertical-align:middle;margin-right:.3em}.phone #join>.logo{width:84px;height:84px;margin:0}
@@ -25,9 +24,9 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 #ytwrap{height:200px;background:#000}#ytwrap iframe{display:block;width:100%;height:200px}
 #song{margin:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mbuttons,#musicform{display:flex;gap:4px;justify-content:center}#music button{padding:.4em .7em}#murl{min-width:0;flex:1;padding:.4em}
-.has-music #lobby{padding-right:256px}
 #tunes{margin:14px 0}#tune{margin-bottom:6px}
-#lobby{display:flex;flex-direction:column;align-items:center;gap:1.6vmin;padding:2vmin}
+#lobby,#joincard,#setup{display:flex;flex-direction:column;align-items:center;gap:1.6vmin}#lobby{padding:2vmin}
+#links,#watchform{display:flex;flex-wrap:wrap;gap:1vmin;justify-content:center}
 #qr{width:28vmin;height:28vmin;background:#fff;border-radius:2vmin}#qr svg{width:100%;height:100%}
 #code{font-size:6vmin;letter-spacing:.2em;font-weight:800}
 #settings,#joined{display:flex;flex-wrap:wrap;justify-content:center;gap:1em;min-height:2.5em}
@@ -52,27 +51,45 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
 .tv #side{width:var(--sw);height:94vmin;max-height:calc(94vmin - var(--mh) - 2vmin);align-self:flex-start;overflow:auto;gap:1.2vmin}
 .tv #banner{font-size:4.6vmin}.tv #list{display:flex;flex-direction:column;gap:.8vmin}
 .tv #side .row{font-size:2.8vmin;padding:.3em .6em}.tv #side button{font-size:2.6vmin;padding:.45em}
-.tv #play:not([hidden]) ~ #music{left:calc(50vw - (98vmin + var(--sw))/2 + 98vmin);right:auto;width:var(--sw);bottom:3vmin;box-sizing:border-box;font-size:2.6vmin;padding:1.2vmin}
-.tv #play:not([hidden]) ~ #music button,.tv #play:not([hidden]) ~ #music select{font-size:2.6vmin}
-.tv #play:not([hidden]) ~ #music #playerbox:not([hidden]){display:grid;grid-template-columns:minmax(200px,1fr) minmax(0,1fr);gap:8px;align-items:center}
-.tv #play:not([hidden]) ~ #music #ytwrap{grid-row:span 2}.tv #play:not([hidden]) ~ #music #mbuttons{flex-wrap:wrap}
-.tv #play:not([hidden]) ~ #music #song{white-space:normal}
+.tv :is(#play,#lobby):not([hidden]) ~ #music{left:calc(50vw - (98vmin + var(--sw))/2 + 98vmin);right:auto;width:var(--sw);bottom:3vmin;box-sizing:border-box;font-size:2.6vmin;padding:1.2vmin}
+.tv :is(#play,#lobby):not([hidden]) ~ #music button,.tv :is(#play,#lobby):not([hidden]) ~ #music select{font-size:2.6vmin}
+.tv :is(#play,#lobby):not([hidden]) ~ #music #playerbox:not([hidden]){display:grid;grid-template-columns:minmax(200px,1fr) minmax(0,1fr);gap:8px;align-items:center}
+.tv :is(#play,#lobby):not([hidden]) ~ #music #ytwrap{grid-row:span 2}.tv :is(#play,#lobby):not([hidden]) ~ #music #mbuttons{flex-wrap:wrap}
+.tv :is(#play,#lobby):not([hidden]) ~ #music #song{white-space:normal}
 .tv #play:has(~ #music #playerbox:not([hidden])) #list:has(> :nth-child(7)){display:grid;grid-template-columns:1fr 1fr}
 .tv #play:has(~ #music #playerbox:not([hidden])) #list:has(> :nth-child(7)) .row{flex-direction:column;align-items:flex-start;gap:0;font-size:2.3vmin;padding:.15em .5em}
 #pmusic{background:#2b2845;border-radius:12px;padding:8px;margin:12px 0}#psong{margin-bottom:6px;overflow-wrap:anywhere}#pmusic button{flex:1;font-size:22px}
 #remote{display:flex;align-items:center;gap:8px}#rinfo{flex:1;min-width:0}
 #rart{width:84px;height:84px;flex:none;border-radius:8px;object-fit:cover}
-.tv #play:not([hidden]) ~ #music #rart{width:22vmin;height:22vmin}
+.tv :is(#play,#lobby):not([hidden]) ~ #music #rart{width:22vmin;height:22vmin}
 #part{display:block;width:120px;height:120px;margin:0 auto 8px;border-radius:10px;object-fit:cover}
 .tv #list:has(> :nth-child(7)) .row{padding:.08em .6em}.tv #side:has(#list > :nth-child(7)){gap:.8vmin}
+@media (orientation:landscape){
+.tv{--cw:min(80vmin,46vw)}
+.tv #lobby:not([hidden]){height:100vh;padding:3vh 0;flex-direction:row;justify-content:center;align-items:stretch;gap:4vmin}
+.tv #joincard,.tv #setup{width:var(--cw);background:#25223b;border-radius:2.4vmin;padding:2vmin}
+.tv #joincard{justify-content:center;gap:1.2vmin}.tv #joincard h1{margin:0;font-size:6vmin}
+.tv #qr{width:46vmin;height:46vmin}.tv #code{font-size:8vmin;line-height:1}
+.tv #setup{justify-content:flex-start;gap:1.2vmin;height:calc(94vh - var(--mh) - 1.5vh);overflow:auto;align-self:flex-start}
+.tv #settings{display:grid;grid-template-columns:1fr 1fr;gap:1vmin;width:100%;min-height:0}
+.tv #setup select,.tv #setup button,.tv #setup input{font-size:2.5vmin;padding:.4em .7em}
+.tv #joined{min-height:0;margin:0;gap:.8vmin}.tv #joined .chip{font-size:2.4vmin;padding:.2em .7em}
+.tv #status:empty{display:none}
+.tv #setup>:first-child{margin-top:auto}.tv #setup>:last-child{margin-bottom:auto}
+.tv #lobby:not([hidden]) ~ #music{left:calc(50vw + 2vmin);right:auto;bottom:3vh;width:var(--cw)}
+}
+@media (orientation:portrait){.tv #lobby:not([hidden]) ~ #music{position:static;width:auto;margin:8px}}
 </style></head><body>
 <main id="tv" hidden>
   <section id="lobby">
+    <div id="joincard">
     <h1><img class="logo" src="icon-192.png" alt="">Boxtile</h1>
     <div>Wall them in. Take the trophy.</div>
     <div>Scan with your phone to join</div>
     <div id="qr"></div>
     <div id="code"></div>
+    </div>
+    <div id="setup">
     <div id="settings">
       <select id="board" aria-label="Board"><option value="9">Square 9x9</option><option value="13">Square 13x13</option><option value="hex">Honeycomb</option></select>
       <select id="layout" aria-label="Starting layout"><option value="spread">Spread starts</option><option value="star">Star starts</option></select>
@@ -80,10 +97,11 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
       <select id="cpus" aria-label="Computer players"><option value="0">No computers</option><option value="1">1 computer</option><option value="2">2 computers</option><option value="3">3 computers</option><option value="4">4 computers</option><option value="5">5 computers</option><option value="6">6 computers</option><option value="7">7 computers</option></select>
     </div>
     <div id="joined"></div>
-    <div><button id="start" class="on" disabled></button> <button id="clear">Clear players</button></div>
+    <div id="actions"><button id="start" class="on" disabled></button> <button id="clear">Clear players</button></div>
     <div id="status"></div>
-    <button id="duolink">Phones only, no TV</button>
-    <form id="watchform"><input id="wcode" maxlength="4" placeholder="Game code" required> <button>Watch a game</button></form>
+    <div id="links"><button id="duolink">Phones only, no TV</button>
+    <form id="watchform"><input id="wcode" maxlength="4" placeholder="Game code" required> <button>Watch a game</button></form></div>
+    </div>
   </section>
   <section id="play" hidden>
     <div id="tvboard"></div>
