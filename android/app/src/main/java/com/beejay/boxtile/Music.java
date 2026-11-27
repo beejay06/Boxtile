@@ -3,6 +3,7 @@ package com.beejay.boxtile;
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
 import android.media.session.MediaController;
@@ -10,10 +11,12 @@ import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
 import android.net.Uri;
 import android.provider.Settings;
+import android.util.Base64;
 import android.view.KeyEvent;
 import android.widget.Toast;
 import org.json.JSONException;
 import org.json.JSONObject;
+import java.io.ByteArrayOutputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +32,7 @@ class Music {
     }
     private final Activity activity;
     private String chosen;
+    private String artSong, art; // cover of the last song, encoded once
 
     Music(Activity activity) { this.activity = activity; }
 
@@ -79,6 +83,32 @@ class Music {
         audio.dispatchMediaKeyEvent(up);
     }
 
+    /** The album cover as a small data URI or web address; null if the app gives none. */
+    private String cover(MediaMetadata m) {
+        String song = chosen + "|" + m.getString(MediaMetadata.METADATA_KEY_TITLE) + "|"
+            + m.getString(MediaMetadata.METADATA_KEY_ARTIST) + "|" + m.getString(MediaMetadata.METADATA_KEY_ALBUM);
+        // The picture often arrives after the title, so keep looking until there is one.
+        if (song.equals(artSong) && art != null) return art;
+        artSong = song;
+        art = null;
+        Bitmap picture = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
+        if (picture == null) picture = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
+        if (picture == null) picture = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+        if (picture != null) {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            Bitmap.createScaledBitmap(picture, 240, 240, true).compress(Bitmap.CompressFormat.JPEG, 80, bytes);
+            art = "data:image/jpeg;base64," + Base64.encodeToString(bytes.toByteArray(), Base64.NO_WRAP);
+        } else {
+            String[] keys = { MediaMetadata.METADATA_KEY_ALBUM_ART_URI, MediaMetadata.METADATA_KEY_ART_URI,
+                MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI };
+            for (String key : keys) {
+                String address = m.getString(key);
+                if (address != null && address.startsWith("https://")) { art = address; break; }
+            }
+        }
+        return art;
+    }
+
     String nowPlaying() {
         JSONObject out = new JSONObject();
         try {
@@ -89,6 +119,7 @@ class Music {
                 if (m != null) {
                     out.put("title", m.getString(MediaMetadata.METADATA_KEY_TITLE));
                     out.put("artist", m.getString(MediaMetadata.METADATA_KEY_ARTIST));
+                    out.put("art", cover(m));
                 }
                 PlaybackState p = c == null ? null : c.getPlaybackState();
                 out.put("playing", p != null && p.getState() == PlaybackState.STATE_PLAYING);

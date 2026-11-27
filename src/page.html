@@ -60,6 +60,11 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
 .tv #play:has(~ #music #playerbox:not([hidden])) #list:has(> :nth-child(7)){display:grid;grid-template-columns:1fr 1fr}
 .tv #play:has(~ #music #playerbox:not([hidden])) #list:has(> :nth-child(7)) .row{flex-direction:column;align-items:flex-start;gap:0;font-size:2.3vmin;padding:.15em .5em}
 #pmusic{background:#2b2845;border-radius:12px;padding:8px;margin:12px 0}#psong{margin-bottom:6px;overflow-wrap:anywhere}#pmusic button{flex:1;font-size:22px}
+#remote{display:flex;align-items:center;gap:8px}#rinfo{flex:1;min-width:0}
+#rart{width:84px;height:84px;flex:none;border-radius:8px;object-fit:cover}
+.tv #play:not([hidden]) ~ #music #rart{width:22vmin;height:22vmin}
+#part{display:block;width:120px;height:120px;margin:0 auto 8px;border-radius:10px;object-fit:cover}
+.tv #list:has(> :nth-child(7)) .row{padding:.08em .6em}.tv #side:has(#list > :nth-child(7)){gap:.8vmin}
 </style></head><body>
 <main id="tv" hidden>
   <section id="lobby">
@@ -90,9 +95,12 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
       <option value="ytmusic">YouTube Music</option><option value="apple">Apple Music</option><option value="link">YouTube link (plays here)</option>
     </select>
     <div id="remote" hidden>
+      <img id="rart" alt="Album cover" hidden>
+      <div id="rinfo">
       <div id="rsong" aria-live="polite">Nothing playing yet</div>
       <div class="mrow"><button id="rprev" aria-label="Previous song">⏮</button><button id="rpp" aria-label="Play or pause">⏯</button><button id="rnext" aria-label="Next song">⏭</button></div>
       <button id="openapp"></button> <button id="access" hidden>Show song names</button>
+    </div>
     </div>
     <div id="elsewhere" hidden></div>
     <div id="playerbox" hidden>
@@ -152,6 +160,7 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <button id="pend" class="wide" hidden>End game</button>
   </section>
   <section id="pmusic" hidden>
+    <img id="part" alt="Album cover" hidden>
     <div id="psong" aria-live="polite"></div>
     <div class="mrow"><button id="pprev" aria-label="Previous song">⏮</button><button id="ppp" aria-label="Play or pause">⏯</button><button id="pnext" aria-label="Next song">⏭</button></div>
   </section>

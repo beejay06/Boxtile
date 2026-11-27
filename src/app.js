@@ -115,13 +115,19 @@ function parseMusic(text) {
     return /^[\w-]{11}$/.test(video || '') ? { video } : null;
   } catch { return null; }
 }
+// Shows a cover picture, or hides the frame when there isn't a usable one.
+const safeArt = u => typeof u === 'string' && u.length < 200000 && /^(data:image\/jpeg;base64,|https:\/\/)/.test(u) ? u : '';
+function setArt(img, url) {
+  img.hidden = !url;
+  if (url && img.getAttribute('src') !== url) { img.onerror = () => img.hidden = true; img.src = url; }
+}
 function setupMusic(report = () => {}) {
-  let player = null, wanted = null, ready = false, sent = '', app = { title: '', playing: false };
+  let player = null, wanted = null, ready = false, sent = '', app = { title: '', playing: false, art: '' };
   // Tells phones what this screen is playing, only when something changed.
   function tellPhones() {
     const source = $('source').value, link = source === 'link';
     const now = { on: link ? !!wanted : source !== '' && /BoxtileApp/.test(navigator.userAgent),
-      title: link ? $('song').textContent : app.title, playing: link ? $('pp').textContent === '⏸' : app.playing };
+      title: link ? $('song').textContent : app.title, playing: link ? $('pp').textContent === '⏸' : app.playing, art: link ? '' : app.art };
     const key = JSON.stringify(now);
     if (key === sent || (!now.on && !sent)) return;
     sent = key; report(now);
@@ -191,7 +197,7 @@ function setupMusic(report = () => {}) {
     $('openapp').textContent = other ? `Open ${names[source]}` : '';
     $('music').classList.toggle('on', source !== '');
     document.body.classList.toggle('has-music', other ? inApp : link && !!wanted);
-    if (other && inApp) tell('use/' + source);
+    if (other && inApp) { app = { title: '', playing: false, art: '' }; setArt($('rart'), ''); tell('use/' + source); }
     tellPhones();
   }
   pick.onchange = () => show(pick.value);
@@ -204,7 +210,8 @@ function setupMusic(report = () => {}) {
     $('access').hidden = now.access;
     $('rsong').textContent = !now.access ? 'Allow access to see song names' : now.title ? `${now.title}${now.artist ? ' · ' + now.artist : ''}` : 'Nothing playing yet';
     $('rpp').textContent = now.access && now.playing ? '⏸' : '⏯';
-    app = { title: now.access && now.title ? `${now.title}${now.artist ? ' · ' + now.artist : ''}` : '', playing: !!now.playing };
+    app = { title: now.access && now.title ? `${now.title}${now.artist ? ' · ' + now.artist : ''}` : '', playing: !!now.playing, art: now.access ? safeArt(now.art) : '' };
+    setArt($('rart'), app.art);
     tellPhones();
   };
   buttons();
@@ -242,7 +249,7 @@ function startTV(duo = false) {
   const conns = new Map();
   let playMusic = null, heard = 0, now = null;
   function share(info) {
-    now = { on: !!info?.on, title: String(info?.title || '').slice(0, 200), playing: !!info?.playing };
+    now = { on: !!info?.on, title: String(info?.title || '').slice(0, 200), playing: !!info?.playing, art: safeArt(info?.art) };
     conns.forEach(c => c.open && c.send({ type: 'now', now }));
   }
   let preview = null, peer, botTimer, celebrated = room.game?.win != null;
@@ -266,7 +273,7 @@ function startTV(duo = false) {
     conns.forEach((conn, token) => {
       if (!conn.open) return;
       const g = room.game;
-      conn.send({ type: 'state', duo, preview, music: room.music, now, you: g ? g.players.findIndex(p => p.id === token) : room.seats.findIndex(p => p.id === token),
+      conn.send({ type: 'state', duo, preview, music: room.music, you: g ? g.players.findIndex(p => p.id === token) : room.seats.findIndex(p => p.id === token),
         seats: room.seats.map(p => ({ name: p.name, emoji: p.emoji, color: p.color })), ready: ready(), size: room.size, cpus: room.cpus,
         game: g && { ...g, players: g.players.map(({ id, ...p }) => p) } });
     });
@@ -333,7 +340,7 @@ function startTV(duo = false) {
   function handle(conn, m) {
     if (!m || typeof m !== 'object') return;
     if (conn.watch) { if (m.type === 'np') share(m.now); return; }
-    if (m.type === 'hello' && typeof m.token === 'string') { conn.watch = !!m.watch; conn.token = m.token; conns.set(m.token, conn); return broadcast(); }
+    if (m.type === 'hello' && typeof m.token === 'string') { conn.watch = !!m.watch; conn.token = m.token; conns.set(m.token, conn); if (now) conn.send({ type: 'now', now }); return broadcast(); }
     if (!conn.token) return;
     const i = room.seats.findIndex(p => p.id === conn.token);
     const g = room.game, gi = g ? g.players.findIndex(p => p.id === conn.token) : -1;
@@ -497,17 +504,19 @@ function startPhone(code, local = null, duo = !!local || new URLSearchParams(loc
   let peer, conn, data = null, retry, pick = null, tint = null, ori = null, wall = null, hd = 0, angle = 0, toBoard, celebrated = false;
   const send = m => conn?.open && conn.send(m);
   const note = t => $('note').textContent = t;
+  let playingNow = null;
   function showNow(now) {
+    setArt($('part'), safeArt(now?.art));
     $('pmusic').hidden = !(now?.on && data?.you >= 0);
     $('psong').textContent = now?.title || 'Music';
     $('ppp').textContent = now?.playing ? '⏸' : '⏯';
   }
   function receive(m) {
-    if (m.type === 'now') return showNow(m.now);
+    if (m.type === 'now') return showNow(playingNow = m.now);
     if (m.type === 'error') return note(m.text);
     const g = m.game, old = data?.game;
     if (!g || !old || g.turn !== old.turn || g.walls.length !== old.walls.length) { ori = null; wall = null; }
-    data = m; duo = m.duo; note(''); $('tunes').hidden = !(m.you >= 0); showNow(m.now); render();
+    data = m; duo = m.duo; note(''); $('tunes').hidden = !(m.you >= 0); showNow(playingNow); render();
   }
   function connect() {
     if (local) { conn = local(receive); return send({ type: 'hello', token }); }
