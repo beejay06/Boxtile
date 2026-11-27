@@ -164,10 +164,41 @@ function setupMusic() {
   $('next').onclick = () => player?.nextVideo();
   $('pp').onclick = () => player && (player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo());
   $('change').onclick = () => { $('musicform').hidden = !$('musicform').hidden; };
+  // Picker: music apps on the Shield, or a YouTube link played right here.
+  const inApp = /BoxtileApp/.test(navigator.userAgent), pick = $('source');
+  const names = { spotify: 'Spotify', tidal: 'TIDAL', ytmusic: 'YouTube Music', apple: 'Apple Music' };
+  const tell = action => { location.href = 'boxtile:' + action; };
+  function show(source) {
+    pick.value = source;
+    store.set('bx-source', source);
+    const link = source === 'link', other = !!names[source];
+    if (!link) player?.pauseVideo?.();
+    $('playerbox').hidden = !link || !wanted;
+    $('musicform').hidden = !link || !!wanted;
+    $('remote').hidden = !other || !inApp;
+    $('elsewhere').hidden = !other || inApp;
+    $('elsewhere').textContent = other ? `Start ${names[source]} on the device playing sound. Controls for it work in the Shield app.` : '';
+    $('openapp').textContent = other ? `Open ${names[source]}` : '';
+    $('music').classList.toggle('on', source !== '');
+    document.body.classList.toggle('has-music', other ? inApp : link && !!wanted);
+    if (other && inApp) tell('use/' + source);
+  }
+  pick.onchange = () => show(pick.value);
+  $('openapp').onclick = () => tell('open/' + pick.value);
+  $('rprev').onclick = () => tell('prev');
+  $('rpp').onclick = () => tell('playpause');
+  $('rnext').onclick = () => tell('next');
+  $('access').onclick = () => tell('access');
+  window.boxtileNow = now => {
+    $('access').hidden = now.access;
+    $('rsong').textContent = !now.access ? 'Allow access to see song names' : now.title ? `${now.title}${now.artist ? ' · ' + now.artist : ''}` : 'Nothing playing yet';
+    $('rpp').textContent = now.access && now.playing ? '⏸' : '⏯';
+  };
   buttons();
-  const last = store.get('bx-music');
-  if (last) load(last, false);
-  return load;
+  const last = store.get('bx-music'), source = store.get('bx-source') || '';
+  if (last && (source === 'link' || !source)) load(last, false);
+  show(source || (last ? 'link' : ''));
+  return url => { show('link'); const ok = load(url); if (ok) show('link'); return ok; };
 }
 // TV remote: arrow keys move between the visible controls.
 function remoteArrows() {

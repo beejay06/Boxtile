@@ -21,6 +21,7 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 #dlist{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:8px 0}.watch #side .chip{font-size:1em}#watchform input{width:9em;text-align:center}
 .slots{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:8px 0}.slots .chip{font-size:1.1em}.chip.empty{background:none;outline:2px dashed #6b66a0;color:#aaa6cc}.count{width:100%}
 #music{position:fixed;right:8px;bottom:8px;z-index:2;width:240px;font-size:13px;background:#2b2845;border-radius:12px;padding:6px}
+#source{width:100%;padding:.4em;margin-bottom:4px}#rsong{margin:6px 0;overflow-wrap:anywhere}.mrow{display:flex;gap:4px;justify-content:center;margin-bottom:6px}
 #ytwrap{height:200px;background:#000}#ytwrap iframe{display:block;width:100%;height:200px}
 #song{margin:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mbuttons,#musicform{display:flex;gap:4px;justify-content:center}#music button{padding:.4em .7em}#murl{min-width:0;flex:1;padding:.4em}
@@ -72,12 +73,22 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <div id="side"><div id="banner"></div><button id="go" class="on">Start game</button><button id="again" class="on">Rematch</button><div id="list"></div><small id="rejoin"></small><button id="reset">End game</button></div>
   </section>
   <aside id="music">
+    <select id="source" aria-label="Music">
+      <option value="">🎵 Music: off</option><option value="spotify">Spotify</option><option value="tidal">TIDAL</option>
+      <option value="ytmusic">YouTube Music</option><option value="apple">Apple Music</option><option value="link">YouTube link (plays here)</option>
+    </select>
+    <div id="remote" hidden>
+      <div id="rsong" aria-live="polite">Nothing playing yet</div>
+      <div class="mrow"><button id="rprev" aria-label="Previous song">⏮</button><button id="rpp" aria-label="Play or pause">⏯</button><button id="rnext" aria-label="Next song">⏭</button></div>
+      <button id="openapp"></button> <button id="access" hidden>Show song names</button>
+    </div>
+    <div id="elsewhere" hidden></div>
     <div id="playerbox" hidden>
       <div id="ytwrap"><div id="yt"></div></div>
       <div id="song" aria-live="polite"></div>
       <div id="mbuttons"><button id="prev" aria-label="Previous song">⏮</button><button id="pp" aria-label="Play or pause">▶</button><button id="next" aria-label="Next song">⏭</button><button id="change">Change</button></div>
     </div>
-    <form id="musicform"><input id="murl" placeholder="🎵 Paste YouTube link" aria-label="YouTube or YouTube Music link"><button>Play</button></form>
+    <form id="musicform" hidden><input id="murl" placeholder="🎵 Paste YouTube link" aria-label="YouTube or YouTube Music link"><button>Play</button></form>
   </aside>
 </main>
 <main id="menu" hidden>

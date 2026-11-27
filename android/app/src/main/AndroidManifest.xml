@@ -3,6 +3,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
+    <queries>
+        <package android:name="com.spotify.tv.android" />
+        <package android:name="com.aspiro.tidal" />
+        <package android:name="com.google.android.youtube.tvmusic" />
+        <package android:name="com.apple.android.music" />
+    </queries>
     <application android:label="Boxtile" android:icon="@drawable/icon" android:banner="@drawable/banner"
         android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" android:allowBackup="false">
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape"
@@ -13,5 +19,11 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+        <service android:name=".MusicAccess" android:label="Boxtile song names" android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
