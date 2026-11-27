@@ -25,6 +25,7 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(Color.rgb(29, 27, 47));
         web.getSettings().setJavaScriptEnabled(true);
         web.getSettings().setDomStorageEnabled(true);
+        web.getSettings().setMediaPlaybackRequiresUserGesture(false); // lets the music player start
         web.setWebChromeClient(new WebChromeClient()); // enables the "End game?" dialog
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -59,6 +60,18 @@ public class MainActivity extends Activity {
         super.onWindowFocusChanged(focused);
         if (focused) web.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+    }
+
+    @Override
+    protected void onPause() {
+        web.onPause(); // stops the music when you leave the app
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        web.onResume();
     }
 
     @Override

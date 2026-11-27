@@ -104,6 +104,84 @@ const waitingText = (seats, size, cpus) => {
   return n > 0 ? `Waiting for ${n} more player${n > 1 ? 's' : ''}` : `Too many players for ${size} spots`;
 };
 
+/* ---------------- Music (YouTube player on the TV and watch screens) ---------------- */
+function parseMusic(text) {
+  try {
+    const u = new URL(String(text).trim()), host = u.hostname.replace(/^(www|m|music)\./, '');
+    if (host !== 'youtube.com' && host !== 'youtu.be') return null;
+    const list = u.searchParams.get('list');
+    const video = host === 'youtu.be' ? u.pathname.slice(1) : u.searchParams.get('v') || u.pathname.match(/\/(?:shorts|live)\/([\w-]+)/)?.[1];
+    if (list && /^[\w-]{10,}$/.test(list)) return { list };
+    return /^[\w-]{11}$/.test(video || '') ? { video } : null;
+  } catch { return null; }
+}
+function setupMusic() {
+  let player = null, wanted = null, ready = false;
+  const title = t => $('song').textContent = t;
+  const buttons = () => ['prev', 'pp', 'next'].forEach(id => $(id).disabled = !ready || (id !== 'pp' && !wanted?.list));
+  function start(autoplay) {
+    if (!ready) return;
+    const what = wanted.list ? { listType: 'playlist', list: wanted.list } : { videoId: wanted.video };
+    const verb = autoplay ? 'load' : 'cue';
+    wanted.list ? player[verb + 'Playlist'](what) : player[verb + 'VideoById'](what);
+    buttons();
+  }
+  function create() {
+    player = new YT.Player('yt', {
+      width: '100%', height: 200, playerVars: { playsinline: 1, rel: 0 },
+      events: {
+        onReady: () => { ready = true; start(wanted.autoplay); },
+        onStateChange: e => {
+          const v = player.getVideoData?.();
+          if (v?.title) title(v.author ? `${v.title} · ${v.author}` : v.title);
+          $('pp').textContent = e.data === 1 ? '⏸' : '▶';
+        },
+        onError: () => { title("That one can't play here"); if (wanted.list) setTimeout(() => player.nextVideo(), 1500); },
+      },
+    });
+  }
+  function load(url, autoplay = true) {
+    const found = parseMusic(url);
+    if (!found) { title('Paste a YouTube or YouTube Music link'); return false; }
+    wanted = { ...found, autoplay };
+    store.set('bx-music', url);
+    $('playerbox').hidden = false; $('musicform').hidden = true; $('music').classList.add('on');
+    document.body.classList.add('has-music');
+    title('Loading music…');
+    if (player) start(autoplay);
+    else if (window.YT?.Player) create();
+    else {
+      window.onYouTubeIframeAPIReady = create;
+      const tag = el('script'); tag.src = 'https://www.youtube.com/iframe_api';
+      tag.onerror = () => { title("Couldn't reach YouTube"); $('musicform').hidden = false; tag.remove(); };
+      document.head.appendChild(tag);
+    }
+    buttons();
+    return true;
+  }
+  $('musicform').onsubmit = e => { e.preventDefault(); if (load($('murl').value)) $('murl').value = ''; };
+  $('prev').onclick = () => player?.previousVideo();
+  $('next').onclick = () => player?.nextVideo();
+  $('pp').onclick = () => player && (player.getPlayerState() === 1 ? player.pauseVideo() : player.playVideo());
+  $('change').onclick = () => { $('musicform').hidden = !$('musicform').hidden; };
+  buttons();
+  const last = store.get('bx-music');
+  if (last) load(last, false);
+  return load;
+}
+// TV remote: arrow keys move between the visible controls.
+function remoteArrows() {
+  document.addEventListener('keydown', e => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    const list = [...$('tv').querySelectorAll('button, select, input')].filter(x => !x.disabled && x.offsetParent);
+    if (!list.length) return;
+    e.preventDefault();
+    const at = list.indexOf(document.activeElement);
+    list[at < 0 ? 0 : (at + step + list.length) % list.length].focus();
+  });
+}
+
 /* ---------------- TV (spectator and host) ---------------- */
 function startTV(duo = false) {
   if (!duo) { document.body.className = 'tv'; $('tv').hidden = false; }
@@ -111,6 +189,7 @@ function startTV(duo = false) {
   const room = saved && Date.now() - saved.at < 6*3600e3 ? saved
     : { code: randomId(4), seats: [], game: null, board: '9', layout: 'spread', cpus: 0 };
   const conns = new Map();
+  let playMusic = null, heard = 0;
   let preview = null, peer, botTimer, celebrated = room.game?.win != null;
 
   // Keeps the player count and computers valid for the chosen board and who has joined.
@@ -132,7 +211,7 @@ function startTV(duo = false) {
     conns.forEach((conn, token) => {
       if (!conn.open) return;
       const g = room.game;
-      conn.send({ type: 'state', duo, preview, you: g ? g.players.findIndex(p => p.id === token) : room.seats.findIndex(p => p.id === token),
+      conn.send({ type: 'state', duo, preview, music: room.music, you: g ? g.players.findIndex(p => p.id === token) : room.seats.findIndex(p => p.id === token),
         seats: room.seats.map(p => ({ name: p.name, emoji: p.emoji, color: p.color })), ready: ready(), size: room.size, cpus: room.cpus,
         game: g && { ...g, players: g.players.map(({ id, ...p }) => p) } });
     });
@@ -216,6 +295,12 @@ function startTV(duo = false) {
       if (i < 0) room.seats.push(seat); else room.seats[i] = seat;
     } else if (m.type === 'leave' && !g && i >= 0) room.seats.splice(i,1);
     else if (m.type === 'start' && !g && i >= 0) return begin();
+    else if (m.type === 'music' && (i >= 0 || gi >= 0)) {
+      if (!parseMusic(m.url)) return fail('Paste a YouTube or YouTube Music link');
+      room.music = { url: String(m.url).trim(), n: (room.music?.n || 0) + 1 };
+      if (playMusic) { heard = room.music.n; playMusic(room.music.url); }
+      conn.send({ type: 'error', text: 'Music sent to the screen' });
+    }
     else if (gi < 0) return;
     else if (m.type === 'go') return go();
     else if (m.type === 'end' && duo && conn.local) { room.game = null; preview = null; }
@@ -274,18 +359,9 @@ function startTV(duo = false) {
   $('size').onchange = () => { room.size = +$('size').value; broadcast(); };
   $('cpus').onchange = () => { room.cpus = +$('cpus').value; broadcast(); };
   $('start').onclick = begin;
-  // TV remote: arrow keys move between the visible controls.
-  $('watchform').onsubmit = e => { e.preventDefault(); goWatch($('wcode').value); };
-  $('duolink').onclick = () => { location.href = location.href.split(/[?#]/)[0] + '?duo=host'; };
-  document.addEventListener('keydown', e => {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
-    if (!step) return;
-    const list = [...$('tv').querySelectorAll('button, select, input')].filter(x => !x.disabled && x.offsetParent);
-    if (!list.length) return;
-    e.preventDefault();
-    const at = list.indexOf(document.activeElement);
-    list[at < 0 ? 0 : (at + step + list.length) % list.length].focus();
-  });
+  remoteArrows();
+  playMusic = setupMusic();
+  if (room.music) heard = room.music.n;
   $('go').onclick = go;
   $('again').onclick = again;
   $('reset').onclick = () => { if (!confirm('End this game and return to the lobby?')) return; room.game = null; preview = null; broadcast(); };
@@ -299,7 +375,9 @@ function startWatch(code) {
   document.body.className = 'tv watch';
   $('tv').hidden = false; $('lobby').hidden = true; $('play').hidden = false;
   const token = 'watch-' + randomId(12);
-  let peer, conn, retry, data = null, celebrated = false;
+  let peer, conn, retry, data = null, celebrated = false, heard = 0;
+  remoteArrows();
+  const playMusic = setupMusic();
   const status = t => $('banner').textContent = t;
   function render() {
     const g = data.game;
@@ -336,6 +414,7 @@ function startWatch(code) {
         if (m.type === 'state') data = m;
         else if (m.type === 'preview' && data) data.preview = m.wall;
         else return;
+        if (data.music && data.music.n !== heard) { heard = data.music.n; playMusic(data.music.url); }
         render();
       });
       conn.on('close', lost);
@@ -360,7 +439,7 @@ function startPhone(code, local = null, duo = !!local || new URLSearchParams(loc
     if (m.type === 'error') return note(m.text);
     const g = m.game, old = data?.game;
     if (!g || !old || g.turn !== old.turn || g.walls.length !== old.walls.length) { ori = null; wall = null; }
-    data = m; duo = m.duo; note(''); render();
+    data = m; duo = m.duo; note(''); $('tunes').hidden = !(m.you >= 0); render();
   }
   function connect() {
     if (local) { conn = local(receive); return send({ type: 'hello', token }); }
@@ -497,6 +576,7 @@ function startPhone(code, local = null, duo = !!local || new URLSearchParams(loc
   };
   Object.keys(CATS).forEach(k => $('cat').add(new Option(k,k)));
   $('cat').onchange = () => data && drawEmojis();
+  $('tuneform').onsubmit = e => { e.preventDefault(); send({ type: 'music', url: $('tune').value }); };
   $('join').onsubmit = e => { e.preventDefault(); if (!pick) return note('Pick an emoji'); if (!tint) return note('Pick a color'); send({ type: 'join', name: $('name').value, emoji: pick, color: tint }); };
   $('pstart').onclick = () => send({ type: 'start' });
   $('leave').onclick = () => send({ type: 'leave' });
