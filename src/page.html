@@ -25,8 +25,7 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 #ytwrap{height:200px;background:#000}#ytwrap iframe{display:block;width:100%;height:200px}
 #song{margin:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #mbuttons,#musicform{display:flex;gap:4px;justify-content:center}#music button{padding:.4em .7em}#murl{min-width:0;flex:1;padding:.4em}
-.has-music #play{justify-content:flex-start}.has-music #lobby{padding-right:256px}
-.has-music #side{align-self:flex-start;max-height:calc(100vh - 6vmin);overflow:auto;font-size:.85em;gap:.8vmin}.has-music .row{padding:.25em .5em}
+.has-music #lobby{padding-right:256px}
 #tunes{margin:14px 0}#tune{margin-bottom:6px}
 #lobby{display:flex;flex-direction:column;align-items:center;gap:1.6vmin;padding:2vmin}
 #qr{width:28vmin;height:28vmin;background:#fff;border-radius:2vmin}#qr svg{width:100%;height:100%}
@@ -48,6 +47,19 @@ button,select{background:#4a4670;color:#fff;cursor:pointer}button.on{background:
 i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events:none;width:56px;height:8px}i.bar-v{width:8px;height:28px}
 .wide{width:100%;margin:6px 0}
 #note{color:#ffd166;min-height:1.4em}
+.tv{--sw:max(36vmin,min(100vw - 104vmin,80vmin));--mh:0px}
+.tv #play{padding:3vmin 0;gap:4vmin}
+.tv #side{width:var(--sw);height:94vmin;max-height:calc(94vmin - var(--mh) - 2vmin);align-self:flex-start;overflow:auto;gap:1.2vmin}
+.tv #banner{font-size:4.6vmin}.tv #list{display:flex;flex-direction:column;gap:.8vmin}
+.tv #side .row{font-size:2.8vmin;padding:.3em .6em}.tv #side button{font-size:2.6vmin;padding:.45em}
+.tv #play:not([hidden]) ~ #music{left:calc(50vw - (98vmin + var(--sw))/2 + 98vmin);right:auto;width:var(--sw);bottom:3vmin;box-sizing:border-box;font-size:2.6vmin;padding:1.2vmin}
+.tv #play:not([hidden]) ~ #music button,.tv #play:not([hidden]) ~ #music select{font-size:2.6vmin}
+.tv #play:not([hidden]) ~ #music #playerbox:not([hidden]){display:grid;grid-template-columns:minmax(200px,1fr) minmax(0,1fr);gap:8px;align-items:center}
+.tv #play:not([hidden]) ~ #music #ytwrap{grid-row:span 2}.tv #play:not([hidden]) ~ #music #mbuttons{flex-wrap:wrap}
+.tv #play:not([hidden]) ~ #music #song{white-space:normal}
+.tv #play:has(~ #music #playerbox:not([hidden])) #list:has(> :nth-child(7)){display:grid;grid-template-columns:1fr 1fr}
+.tv #play:has(~ #music #playerbox:not([hidden])) #list:has(> :nth-child(7)) .row{flex-direction:column;align-items:flex-start;gap:0;font-size:2.3vmin;padding:.15em .5em}
+#pmusic{background:#2b2845;border-radius:12px;padding:8px;margin:12px 0}#psong{margin-bottom:6px;overflow-wrap:anywhere}#pmusic button{flex:1;font-size:22px}
 </style></head><body>
 <main id="tv" hidden>
   <section id="lobby">
@@ -138,6 +150,10 @@ i.bar-h,i.bar-v{display:block;margin:0 auto 4px;border-radius:4px;pointer-events
     <div id="walls"></div>
     <small id="pcode"></small>
     <button id="pend" class="wide" hidden>End game</button>
+  </section>
+  <section id="pmusic" hidden>
+    <div id="psong" aria-live="polite"></div>
+    <div class="mrow"><button id="pprev" aria-label="Previous song">⏮</button><button id="ppp" aria-label="Play or pause">⏯</button><button id="pnext" aria-label="Next song">⏭</button></div>
   </section>
   <details id="tunes" hidden><summary>🎵 Send music to the screen</summary>
     <form id="tuneform"><input id="tune" class="wide" placeholder="Paste YouTube or YouTube Music link" required><button class="wide">Send</button></form>

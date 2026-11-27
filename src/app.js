@@ -115,9 +115,18 @@ function parseMusic(text) {
     return /^[\w-]{11}$/.test(video || '') ? { video } : null;
   } catch { return null; }
 }
-function setupMusic() {
-  let player = null, wanted = null, ready = false;
-  const title = t => $('song').textContent = t;
+function setupMusic(report = () => {}) {
+  let player = null, wanted = null, ready = false, sent = '', app = { title: '', playing: false };
+  // Tells phones what this screen is playing, only when something changed.
+  function tellPhones() {
+    const source = $('source').value, link = source === 'link';
+    const now = { on: link ? !!wanted : source !== '' && /BoxtileApp/.test(navigator.userAgent),
+      title: link ? $('song').textContent : app.title, playing: link ? $('pp').textContent === '⏸' : app.playing };
+    const key = JSON.stringify(now);
+    if (key === sent || (!now.on && !sent)) return;
+    sent = key; report(now);
+  }
+  const title = t => { $('song').textContent = t; setTimeout(tellPhones); };
   const buttons = () => ['prev', 'pp', 'next'].forEach(id => $(id).disabled = !ready || (id !== 'pp' && !wanted?.list));
   function start(autoplay) {
     if (!ready) return;
@@ -135,6 +144,7 @@ function setupMusic() {
           const v = player.getVideoData?.();
           if (v?.title) title(v.author ? `${v.title} · ${v.author}` : v.title);
           $('pp').textContent = e.data === 1 ? '⏸' : '▶';
+          tellPhones();
         },
         onError: () => { title("That one can't play here"); if (wanted.list) setTimeout(() => player.nextVideo(), 1500); },
       },
@@ -182,6 +192,7 @@ function setupMusic() {
     $('music').classList.toggle('on', source !== '');
     document.body.classList.toggle('has-music', other ? inApp : link && !!wanted);
     if (other && inApp) tell('use/' + source);
+    tellPhones();
   }
   pick.onchange = () => show(pick.value);
   $('openapp').onclick = () => tell('open/' + pick.value);
@@ -193,12 +204,21 @@ function setupMusic() {
     $('access').hidden = now.access;
     $('rsong').textContent = !now.access ? 'Allow access to see song names' : now.title ? `${now.title}${now.artist ? ' · ' + now.artist : ''}` : 'Nothing playing yet';
     $('rpp').textContent = now.access && now.playing ? '⏸' : '⏯';
+    app = { title: now.access && now.title ? `${now.title}${now.artist ? ' · ' + now.artist : ''}` : '', playing: !!now.playing };
+    tellPhones();
   };
   buttons();
   const last = store.get('bx-music'), source = store.get('bx-source') || '';
   if (last && (source === 'link' || !source)) load(last, false);
   show(source || (last ? 'link' : ''));
-  return url => { show('link'); const ok = load(url); if (ok) show('link'); return ok; };
+  const play = url => { show('link'); const ok = load(url); if (ok) show('link'); return ok; };
+  play.control = action => {
+    const id = { prev: ['prev', 'rprev'], playpause: ['pp', 'rpp'], next: ['next', 'rnext'] }[action];
+    if (id) $(id[$('source').value === 'link' ? 0 : 1]).click();
+  };
+  // The YouTube video keeps the panel tall, so the scoreboard needs to know its height.
+  if (window.ResizeObserver) new ResizeObserver(() => document.body.style.setProperty('--mh', $('music').offsetHeight + 'px')).observe($('music'));
+  return play;
 }
 // TV remote: arrow keys move between the visible controls.
 function remoteArrows() {
@@ -220,7 +240,11 @@ function startTV(duo = false) {
   const room = saved && Date.now() - saved.at < 6*3600e3 ? saved
     : { code: randomId(4), seats: [], game: null, board: '9', layout: 'spread', cpus: 0 };
   const conns = new Map();
-  let playMusic = null, heard = 0;
+  let playMusic = null, heard = 0, now = null;
+  function share(info) {
+    now = { on: !!info?.on, title: String(info?.title || '').slice(0, 200), playing: !!info?.playing };
+    conns.forEach(c => c.open && c.send({ type: 'now', now }));
+  }
   let preview = null, peer, botTimer, celebrated = room.game?.win != null;
 
   // Keeps the player count and computers valid for the chosen board and who has joined.
@@ -242,7 +266,7 @@ function startTV(duo = false) {
     conns.forEach((conn, token) => {
       if (!conn.open) return;
       const g = room.game;
-      conn.send({ type: 'state', duo, preview, music: room.music, you: g ? g.players.findIndex(p => p.id === token) : room.seats.findIndex(p => p.id === token),
+      conn.send({ type: 'state', duo, preview, music: room.music, now, you: g ? g.players.findIndex(p => p.id === token) : room.seats.findIndex(p => p.id === token),
         seats: room.seats.map(p => ({ name: p.name, emoji: p.emoji, color: p.color })), ready: ready(), size: room.size, cpus: room.cpus,
         game: g && { ...g, players: g.players.map(({ id, ...p }) => p) } });
     });
@@ -308,7 +332,7 @@ function startTV(duo = false) {
   const again = () => { if (room.game && room.game.win !== null) { Rules.restart(room.game); preview = null; broadcast(); } };
   function handle(conn, m) {
     if (!m || typeof m !== 'object') return;
-    if (conn.watch) return;
+    if (conn.watch) { if (m.type === 'np') share(m.now); return; }
     if (m.type === 'hello' && typeof m.token === 'string') { conn.watch = !!m.watch; conn.token = m.token; conns.set(m.token, conn); return broadcast(); }
     if (!conn.token) return;
     const i = room.seats.findIndex(p => p.id === conn.token);
@@ -326,6 +350,11 @@ function startTV(duo = false) {
       if (i < 0) room.seats.push(seat); else room.seats[i] = seat;
     } else if (m.type === 'leave' && !g && i >= 0) room.seats.splice(i,1);
     else if (m.type === 'start' && !g && i >= 0) return begin();
+    else if (m.type === 'mc' && (i >= 0 || gi >= 0)) {
+      if (!['prev', 'playpause', 'next'].includes(m.action)) return;
+      if (playMusic) return playMusic.control(m.action);
+      return conns.forEach(c => c.watch && c.open && c.send({ type: 'mc', action: m.action }));
+    }
     else if (m.type === 'music' && (i >= 0 || gi >= 0)) {
       if (!parseMusic(m.url)) return fail('Paste a YouTube or YouTube Music link');
       room.music = { url: String(m.url).trim(), n: (room.music?.n || 0) + 1 };
@@ -391,7 +420,7 @@ function startTV(duo = false) {
   $('cpus').onchange = () => { room.cpus = +$('cpus').value; broadcast(); };
   $('start').onclick = begin;
   remoteArrows();
-  playMusic = setupMusic();
+  playMusic = setupMusic(share);
   if (room.music) heard = room.music.n;
   $('go').onclick = go;
   $('again').onclick = again;
@@ -408,7 +437,8 @@ function startWatch(code) {
   const token = 'watch-' + randomId(12);
   let peer, conn, retry, data = null, celebrated = false, heard = 0;
   remoteArrows();
-  const playMusic = setupMusic();
+  let latest = null;
+  const playMusic = setupMusic(now => { latest = now; if (conn?.open) conn.send({ type: 'np', now }); });
   const status = t => $('banner').textContent = t;
   function render() {
     const g = data.game;
@@ -440,8 +470,9 @@ function startWatch(code) {
     const lost = () => { if (mine !== peer) return; status('Lost the game. Reconnecting…'); clearTimeout(retry); retry = setTimeout(connect, 2500); };
     mine.on('open', () => {
       conn = mine.connect(PREFIX + code, { reliable: true });
-      conn.on('open', () => conn.send({ type: 'hello', token, watch: true }));
+      conn.on('open', () => { conn.send({ type: 'hello', token, watch: true }); if (latest) conn.send({ type: 'np', now: latest }); });
       conn.on('data', m => {
+        if (m.type === 'mc') return playMusic.control(m.action);
         if (m.type === 'state') data = m;
         else if (m.type === 'preview' && data) data.preview = m.wall;
         else return;
@@ -466,11 +497,17 @@ function startPhone(code, local = null, duo = !!local || new URLSearchParams(loc
   let peer, conn, data = null, retry, pick = null, tint = null, ori = null, wall = null, hd = 0, angle = 0, toBoard, celebrated = false;
   const send = m => conn?.open && conn.send(m);
   const note = t => $('note').textContent = t;
+  function showNow(now) {
+    $('pmusic').hidden = !(now?.on && data?.you >= 0);
+    $('psong').textContent = now?.title || 'Music';
+    $('ppp').textContent = now?.playing ? '⏸' : '⏯';
+  }
   function receive(m) {
+    if (m.type === 'now') return showNow(m.now);
     if (m.type === 'error') return note(m.text);
     const g = m.game, old = data?.game;
     if (!g || !old || g.turn !== old.turn || g.walls.length !== old.walls.length) { ori = null; wall = null; }
-    data = m; duo = m.duo; note(''); $('tunes').hidden = !(m.you >= 0); render();
+    data = m; duo = m.duo; note(''); $('tunes').hidden = !(m.you >= 0); showNow(m.now); render();
   }
   function connect() {
     if (local) { conn = local(receive); return send({ type: 'hello', token }); }
@@ -607,6 +644,7 @@ function startPhone(code, local = null, duo = !!local || new URLSearchParams(loc
   };
   Object.keys(CATS).forEach(k => $('cat').add(new Option(k,k)));
   $('cat').onchange = () => data && drawEmojis();
+  for (const [id, action] of [['pprev','prev'], ['ppp','playpause'], ['pnext','next']]) $(id).onclick = () => send({ type: 'mc', action });
   $('tuneform').onsubmit = e => { e.preventDefault(); send({ type: 'music', url: $('tune').value }); };
   $('join').onsubmit = e => { e.preventDefault(); if (!pick) return note('Pick an emoji'); if (!tint) return note('Pick a color'); send({ type: 'join', name: $('name').value, emoji: pick, color: tint }); };
   $('pstart').onclick = () => send({ type: 'start' });
